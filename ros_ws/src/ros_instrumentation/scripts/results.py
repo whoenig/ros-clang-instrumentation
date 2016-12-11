@@ -21,7 +21,7 @@ if __name__ == "__main__":
         numNodes = len(topic["nodes"])
         allNodeData = []
         for nodeIdx in range(0, numNodes):
-            fileName = "/home/whoenig/.ros/{}_{}.txt".format(topicIdx, nodeIdx)
+            fileName = os.path.expanduser("~/.ros/{}_{}.txt".format(topicIdx, nodeIdx))
             nodeData = np.loadtxt(fileName, dtype=np.uint64, delimiter=",", ndmin=2)
             allNodeData.append(nodeData)
             # print(nodeData)
