@@ -1,0 +1,12 @@
+topics:
+  - name: chatter
+    nodes:
+      - name: talker
+        file: talker.cpp
+        function: main
+        line: 90
+        type: publisher
+      - name: listener
+        file: listener.cpp
+        function: chatterCallback
+        type: subscriber

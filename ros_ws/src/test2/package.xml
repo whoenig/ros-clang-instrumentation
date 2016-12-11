@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package>
+  <name>test2</name>
+  <version>0.0.0</version>
+  <description>Test2 for ros-clang-instrumentation</description>
+
+  <maintainer email="whoenig@usc.edu">Wolfgang Hoenig</maintainer>
+
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <run_depend>roscpp</run_depend>
+
+  <export>
+  </export>
+</package>

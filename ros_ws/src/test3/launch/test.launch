@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+  <node name="listener" pkg="test3" type="test3_listener" output="screen"/>
+  <node name="repeater" pkg="test3" type="test3_repeater" output="screen"/>
+  <node name="talker" pkg="test3" type="test3_talker" output="screen"/>
+</launch>

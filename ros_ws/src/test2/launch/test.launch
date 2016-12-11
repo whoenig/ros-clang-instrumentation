@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+  <node name="talkerAndListener" pkg="test2" type="test2_talkerAndListener" output="screen"/>
+</launch>

@@ -1,0 +1,20 @@
+topics:
+  - name: chatter2
+    nodes:
+      - name: talker
+        file: talker.cpp
+        function: main
+        line: 34
+        type: publisher
+      - name: repeater
+        file: repeater.cpp
+        function: chatter2Callback
+        type: subscriber
+      - name: repeater
+        file: repeater.cpp
+        function: chatter2Callback
+        type: publisher
+      - name: listener
+        file: listener.cpp
+        function: chatter3Callback
+        type: subscriber
