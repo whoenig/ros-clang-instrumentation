@@ -9,11 +9,14 @@ The goal of the project is to use the static analysis capabilities of clang to i
 
 1. Install Ubuntu 16.04
 2. Update the system
+
    ```
    sudo apt update
    sudo apt upgrade
    ```
+
 3. Install ROS (taken from http://wiki.ros.org/kinetic/Installation/Ubuntu)
+
    ```
    sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
    sudo apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 --recv-key 421C365BD9FF1F717815A3895523BAEEB01FA116
@@ -24,7 +27,9 @@ The goal of the project is to use the static analysis capabilities of clang to i
    echo "source /opt/ros/kinetic/setup.bash" >> ~/.bashrc
    source ~/.bashrc
    ```
+   
 4. Install clang (& fix cmake issues on Ubuntu 16.04, see https://github.com/iovisor/bcc/issues/492)
+
    ```
    sudo apt-get install -y llvm-3.8-dev libclang-3.8-dev
    sudo mkdir -p /usr/lib/llvm-3.8/share/llvm
@@ -34,11 +39,15 @@ The goal of the project is to use the static analysis capabilities of clang to i
    sudo sed -i '/_IMPORT_CHECK_TARGETS sancov/ {s|^|#|}' /usr/lib/llvm-3.8/share/llvm/cmake/LLVMExports-relwithdebinfo.cmake
    sudo ln -s /usr/lib/x86_64-linux-gnu/libLLVM-3.8.so.1 /usr/lib/llvm-3.8/lib/
    ```
+   
 5. Clone this repository
+
    ```
    git clone https://github.com/whoenig/ros-clang-instrumentation.git
    ```
+   
 6. Build clang instrumentation
+
    ```
    cd ros-clang-instrumentation
    cd llvm-passes
