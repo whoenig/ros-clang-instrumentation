@@ -30,10 +30,10 @@ if __name__ == "__main__":
         dts = np.empty((numElements, numNodes - 1))
         for i in range(1, numNodes):
             dts[:,i-1] = allNodeData[i][0:numElements,0] - allNodeData[i-1][0:numElements,0]
-        print("Latencies [us]:")
-        print(dts)
+        print("  Latencies [us]:")
+        print("    " + str(dts).replace('\n','\n    '))
         for iteration in range(0, numElements):
-            print("Iteration {}".format(iteration))
+            print("  Iteration {}:".format(iteration))
             for i in range(0, numNodes):
                 fileName = os.path.join(os.path.abspath("."), "build/" + args.name + "/paths_{}_{}.txt".format(topicIdx, i))
                 # fileName = "/home/whoenig/projects/phd/cs610/project/milestone2/ros_ws/build/test3/paths_{}_{}.txt".format(topicIdx, i)
@@ -42,10 +42,15 @@ if __name__ == "__main__":
                 if allNodeData[i].shape[1] > 1:
                     entry = lines[allNodeData[i][iteration,1]]
                     entries = entry.split(",")[1:]
+                    lastEntry = None
                     for e in entries:
-                        print(os.path.basename(e))
+                        if e != lastEntry:
+                            print("    " + os.path.basename(e))
+                        lastEntry = e
                 else:
-                    print(lines[0])
+                    print("    " + lines[0])
+                if i < numNodes - 1:
+                    print("    Latency: {} us".format(dts[iteration, i]))
 
         topicIdx += 1
 

@@ -92,33 +92,27 @@ This test is the default publisher/subscriber examples (see http://wiki.ros.org/
 
    ```
    Topic: chatter
-   Latencies [us]:
-   [[ 416.]
-    [ 295.]
-    [ 202.]
-    [ 201.]
-    [ 203.]
-    [ 153.]
-    [ 153.]
-    [ 212.]]
-   Iteration 0
-   talker.cpp:24
-   talker.cpp:36
-   talker.cpp:36
-   talker.cpp:36
-   talker.cpp:43
-   talker.cpp:43
-   talker.cpp:43
-   talker.cpp:62
-   talker.cpp:62
-   talker.cpp:62
-   talker.cpp:70
-   talker.cpp:98
-   talker.cpp:101
-   talker.cpp:102
-   talker.cpp:102
+     Latencies [us]:
+       [[ 276.]
+        [ 177.]
+        [ 357.]
+        [ 186.]
+        [ 195.]
+        [ 195.]]
+     Iteration 0:
+       talker.cpp:24
+       talker.cpp:36
+       talker.cpp:43
+       talker.cpp:62
+       talker.cpp:70
+       talker.cpp:98
+       talker.cpp:101
+       talker.cpp:102
+       talker.cpp:102
 
-   chatterCallback(boost::shared_ptr<std_msgs::String_<std::allocator<void> > const> const&)
+       Latency: 276.0 us
+       chatterCallback(boost::shared_ptr<std_msgs::String_<std::allocator<void> > const> const&)
+
    ```
 
    Where the latencies should be the same order of magnitude (below 1000 us) and the path should match exactly for each iteration.
@@ -153,40 +147,30 @@ This test uses one publisher and one subscriber in the same executable, testing 
 4. Expected output
 
    ```
-   Latencies [us]:
-   [[ 104326.]
-    [  97750.]
-    [  99025.]
-    [  99436.]
-    [ 100163.]
-    [ 101574.]
-    [  98640.]
-    [ 103211.]
-    [    118.]]
-   Iteration 0
-   talkerAndListener.cpp:14
-   talkerAndListener.cpp:26
-   talkerAndListener.cpp:26
-   talkerAndListener.cpp:26
-   talkerAndListener.cpp:33
-   talkerAndListener.cpp:33
-   talkerAndListener.cpp:33
-   talkerAndListener.cpp:52
-   talkerAndListener.cpp:52
-   talkerAndListener.cpp:52
-   talkerAndListener.cpp:53
-   talkerAndListener.cpp:53
-   talkerAndListener.cpp:53
-   talkerAndListener.cpp:53
-   talkerAndListener.cpp:53
-   talkerAndListener.cpp:61
-   talkerAndListener.cpp:88
-   talkerAndListener.cpp:91
-   talkerAndListener.cpp:92
-   talkerAndListener.cpp:92
-   talkerAndListener.cpp:92
+   Topic: chatter
+     Latencies [us]:
+       [[ 100199.]
+        [ 100089.]
+        [ 100097.]
+        [ 102300.]
+        [ 100040.]
+        [ 100173.]
+        [ 100016.]
+        [ 100248.]]
+     Iteration 0:
+       talkerAndListener.cpp:14
+       talkerAndListener.cpp:26
+       talkerAndListener.cpp:33
+       talkerAndListener.cpp:52
+       talkerAndListener.cpp:53
+       talkerAndListener.cpp:61
+       talkerAndListener.cpp:88
+       talkerAndListener.cpp:91
+       talkerAndListener.cpp:92
+       talkerAndListener.cpp:92
 
-   chatterCallback(boost::shared_ptr<std_msgs::String_<std::allocator<void> > const> const&)
+       Latency: 100199.0 us
+       chatterCallback(boost::shared_ptr<std_msgs::String_<std::allocator<void> > const> const&)
 
    ```
 
@@ -194,15 +178,15 @@ This test uses one publisher and one subscriber in the same executable, testing 
 
 ### Test3
 
-This test uses one publisher, a repeater, and one subscriber, creating a pipeline of 3 ROS nodes. The repeater has two different code path, one being slow and one being fast, emulated by the following code:
+This test uses one publisher, a repeater, and one subscriber, creating a pipeline of 3 ROS nodes. The repeater has two different code paths, one being slow and one being fast, emulated by the following code:
 
 ```c++
 if (counter % 2 == 0) {
-    // emulate slow computation
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-  } else {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
+  // emulate slow computation
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+} else {
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+}
 ```
 
 1. Building the example with instrumentation
@@ -230,53 +214,53 @@ if (counter % 2 == 0) {
 4. Expected output
 
    ```
-   Latencies [us]:
-   [[  2035.  56703.    688.]
-    [  2078.   1780.    182.]
-    [  1005.  57892.    574.]
-    [   682.   1257.    296.]
-    [   206.  59016.    695.]]
-   Iteration 0
-   talker.cpp:7
-   talker.cpp:9
-   talker.cpp:9
-   talker.cpp:11
-   talker.cpp:12
-   talker.cpp:12
-   talker.cpp:13
-   talker.cpp:13
-   talker.cpp:17
-   talker.cpp:40
-   talker.cpp:43
+   Topic: chatter2
+     Latencies [us]:
+       [[   284.  50244.    263.]
+        [   177.   1119.    106.]
+        [   274.  50165.    188.]
+        [   226.   1112.    101.]]
+     Iteration 0:
+       talker.cpp:7
+       talker.cpp:9
+       talker.cpp:11
+       talker.cpp:12
+       talker.cpp:13
+       talker.cpp:17
+       talker.cpp:40
+       talker.cpp:43
 
-   chatter2Callback(boost::shared_ptr<geometry_msgs::Point_<std::allocator<void> > const> const&)
+       Latency: 284.0 us
+       chatter2Callback(boost::shared_ptr<geometry_msgs::Point_<std::allocator<void> > const> const&)
 
-   repeater.cpp:9
-   repeater.cpp:14
-   repeater.cpp:20
+       Latency: 50244.0 us
+       repeater.cpp:9
+       repeater.cpp:14
+       repeater.cpp:20
 
-   chatter3Callback(boost::shared_ptr<geometry_msgs::Vector3_<std::allocator<void> > const> const&)
+       Latency: 263.0 us
+       chatter3Callback(boost::shared_ptr<geometry_msgs::Vector3_<std::allocator<void> > const> const&)
 
-   Iteration 1
-   talker.cpp:7
-   talker.cpp:9
-   talker.cpp:9
-   talker.cpp:11
-   talker.cpp:12
-   talker.cpp:12
-   talker.cpp:13
-   talker.cpp:13
-   talker.cpp:17
-   talker.cpp:40
-   talker.cpp:43
+     Iteration 1:
+       talker.cpp:7
+       talker.cpp:9
+       talker.cpp:11
+       talker.cpp:12
+       talker.cpp:13
+       talker.cpp:17
+       talker.cpp:40
+       talker.cpp:43
 
-   chatter2Callback(boost::shared_ptr<geometry_msgs::Point_<std::allocator<void> > const> const&)
+       Latency: 177.0 us
+       chatter2Callback(boost::shared_ptr<geometry_msgs::Point_<std::allocator<void> > const> const&)
 
-   repeater.cpp:9
-   repeater.cpp:16
-   repeater.cpp:20
+       Latency: 1119.0 us
+       repeater.cpp:9
+       repeater.cpp:16
+       repeater.cpp:20
 
-   chatter3Callback(boost::shared_ptr<geometry_msgs::Vector3_<std::allocator<void> > const> const&)
+       Latency: 106.0 us
+       chatter3Callback(boost::shared_ptr<geometry_msgs::Vector3_<std::allocator<void> > const> const&)
 
    ```
 

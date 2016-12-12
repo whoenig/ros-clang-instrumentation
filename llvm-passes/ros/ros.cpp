@@ -24,8 +24,12 @@ using namespace std;
 
 using namespace boost;
 
+///////////////////////////////////////////
 // helper functions
+///////////////////////////////////////////
 
+
+// demangles a C++ function name
 inline std::string demangle(const std::string& name)
 {
   int status = -1;
@@ -34,6 +38,7 @@ inline std::string demangle(const std::string& name)
   return (status == 0) ? res.get() : std::string(name);
 }
 
+// Writes LLVM IR to a file
 void dumpToFile(Value* f, const std::string& fileName)
 {
   std::error_code EC;
@@ -41,11 +46,12 @@ void dumpToFile(Value* f, const std::string& fileName)
   str << *f;
 }
 
+///////////////////////////////////////////
 // Ball-Larus functions
+///////////////////////////////////////////
 
-//////////////////////
-// Graph stuff
 
+// Graph data structures
 struct Vertex
 {
   Vertex()
@@ -86,6 +92,7 @@ typedef boost::adjacency_list<
 typedef boost::graph_traits<graph_t>::vertex_descriptor vertex_t;
 typedef boost::graph_traits<graph_t>::edge_descriptor edge_t;
 
+// helper to get debug line information
 std::string lineInfo(vertex_t v, const graph_t& graph) {
   for (const auto& I : *graph[v].blocks.at(0)) {
     if (const DILocation *loc = I.getDebugLoc()) {
@@ -102,18 +109,8 @@ std::string lineInfo(vertex_t v, const graph_t& graph) {
   return "";
 }
 
-// std::string file(vertex_t v, const graph_t& graph) {
-//   for (const auto& I : *graph[v].blocks.at(0)) {
-//     if (const DILocation *loc = I.getDebugLoc()) {
-//       unsigned line = loc->getLine();
-//       StringRef file = loc->getFilename();
-//       StringRef dir = loc->getDirectory();
-//       return file;
-//     }
-//   }
-//   return "";
-// }
 
+// helper classes to write graph to a *.dot file
 class myVertexWriter {
 public:
   explicit myVertexWriter(
@@ -168,22 +165,11 @@ void saveDotFile(
   myVertexWriter vw(graph);
   myEdgeWriter ew(graph);
 
-  // std::map<vertex_t, size_t> vertexID;
-  // boost::associative_property_map< std::map<vertex_t, size_t> > propMapVertexID(vertexID);
-
-  // size_t i = 0;
-  // for (auto vp = vertices(graph); vp.first != vp.second; ++vp.first, ++i) {
-  //   const vertex_t& id = *vp.first;
-  //   boost::put(propMapVertexID, id, i);
-  // }
-
   std::ofstream dotFile(fileName);
-  // this crashes in v-rep...
-  boost::write_graphviz(dotFile, graph, vw, ew);//, boost::default_writer(), propMapVertexID);
+  boost::write_graphviz(dotFile, graph, vw, ew);
 }
 
 // fig4 of Ball94
-
 uint32_t ComputeIncrementDir(edge_t e, edge_t f, graph_t& graph, bool eValid)
 {
   if (!eValid) {
@@ -197,6 +183,7 @@ uint32_t ComputeIncrementDir(edge_t e, edge_t f, graph_t& graph, bool eValid)
   }
 }
 
+// See Ball94
 void ComputeIncrementDFS(uint32_t events, vertex_t v, edge_t e, graph_t& graph, bool eValid) {
   for (auto ve = in_edges(v, graph); ve.first != ve.second; ++ve.first) {
     edge_t f = *ve.first;
@@ -245,8 +232,7 @@ void ComputeIncrement(vertex_t root, graph_t& graph)
   }
 }
 
-// reconstruct path (section 3.5)
-
+// reconstruct path (section 3.5, Ball96)
 void computePath(
   uint32_t val,
   graph_t& graph,
@@ -285,12 +271,12 @@ void computePath(
 
 // Applies path profiling following the Ball Larus approach
 // The list of possible path is written out to the file
-// the local counter is returned for further use
 void ballLarusPatch(
   Function &F,
+  Instruction& exitInst,
   const std::string& pathListFileName) {
 
-  // create local variable and initialize with 0
+  // create global variable and initialize with 0
   GlobalVariable* counter = new GlobalVariable(
     *F.getParent(),
     Type::getInt64Ty(F.getContext()),
@@ -299,14 +285,11 @@ void ballLarusPatch(
     ConstantInt::get(Type::getInt64Ty(F.getContext()), 0),
     "ballLarusCounter");
 
-  // return;
-
   Instruction* insertPt = F.getEntryBlock().getFirstNonPHI();
   IRBuilder<> builder(insertPt);
-  // AllocaInst* counter = builder.CreateAlloca(Type::getInt64Ty(F.getContext()), nullptr, "counter");
   builder.CreateStore(ConstantInt::get(Type::getInt64Ty(F.getContext()), 0), counter);
 
-  // Create DAG and add numPaths + val (sections 3.2 in paper)
+  // Create DAG and add numPaths + val (sections 3.2 in paper Bal96)
   graph_t graph;
   vertex_t entry;
   std::set<vertex_t> exits;
@@ -342,7 +325,15 @@ void ballLarusPatch(
     }
     // add edges
     uint32_t numEdges = 0;
+    bool containsExitInst = false;
     for (BasicBlock* BB : SCCBBs) {
+      for (const auto& I : *BB) {
+        if (&I == &exitInst) {
+          containsExitInst = true;
+        }
+      }
+
+      // skip exception based basic blocks
       if (isa<LandingPadInst>(BB->front())) {
         continue;
       }
@@ -378,7 +369,8 @@ void ballLarusPatch(
     }
 
     //
-    if (numEdges == 0) {
+    if (/*numEdges == 0
+        ||*/ containsExitInst) {
       // leaf node
       graph[v].numPaths = 1;
       exits.insert(v); // first one is exit
@@ -414,9 +406,7 @@ void ballLarusPatch(
   // compute increment
   ComputeIncrement(entry, graph);
 
-
-  saveDotFile(graph, "ballLarus.dot");
-
+  // saveDotFile(graph, "ballLarus.dot");
 
   // patch all chords
   LLVMContext& Ctx = F.getContext();
@@ -459,19 +449,6 @@ void ballLarusPatch(
     }
   }
 
-  // add call to runtime
-  // LLVMContext& Ctx = F.getContext();
-  // Constant* printResultFunc = F.getParent()->getOrInsertFunction(
-  //   "printResult", Type::getVoidTy(Ctx), Type::getInt64Ty(Ctx), NULL);
-
-  // IRBuilder<> builder2(graph[exit].blocks.at(0)->getTerminator());
-  // Value* count = builder2.CreateLoad(counter, "count");
-  // Value* args[] = {count};
-  // builder2.CreateCall(printResultFunc, args);
-
-  // dumpToFile(&F, "main.ll");
-  // changedCode = true;
-
   // write file with possible paths
   // format: <path#>,line1,line2,line3,...
   for (auto exit : exits) {
@@ -490,15 +467,13 @@ void ballLarusPatch(
     }
     pathListFile << lineInfo(target(result.back(), graph), graph) << "\n";
   }
-
-  // return counter;
 }
 
-/////////////////////
+///////////////////////////////////////////
+// LLVM Instrumentation
+///////////////////////////////////////////
 
-
-
-
+// data structure to store user-specified instrumentation locations
 struct PatchPoint
 {
 public:
@@ -540,6 +515,7 @@ namespace {
 
     ROSPass() : FunctionPass(ID)
     {
+      // Read config file
       if(const char* configFile = std::getenv("ROS_INSTRUMENTATION_CONFIG_FILE"))
       {
         try
@@ -578,143 +554,13 @@ namespace {
       }
     }
 
-    // http://docs.ros.org/kinetic/api/roscpp_serialization/html/serialization_8h_source.html#l00845
-/*
-    844 template<typename M>
-    845 inline SerializedMessage serializeMessage(const M& message)
-    846 {
-    847   SerializedMessage m;
-    848   uint32_t len = serializationLength(message);
-    849   m.num_bytes = len + 4; // <= change to + 12
-    850   m.buf.reset(new uint8_t[m.num_bytes]);
-    851
-    852   OStream s(m.buf.get(), (uint32_t)m.num_bytes);
-    853   serialize(s, (uint32_t)m.num_bytes - 4); // <= change to -12
-    854   m.message_start = s.getData();
-    855   serialize(s, message);
-          serialize(s, timestamp()); // <= new call
-    856
-    857   return m;
-    858 }
-*/
-
-    void patchserializeMessageFunction(Function* f)
-    {
-      dumpToFile(f, "serializeMessageOriginal.ll");
-      // errs() << "before patching\n";
-      // f->dump();
-      // Get the function to call from our runtime library.
-      LLVMContext &Ctx = f->getContext();
-      Constant *timestamp = f->getParent()->getOrInsertFunction(
-        "timestamp", IntegerType::get(Ctx, 64), NULL
-      );
-      // Function* rtlibFunc1 = f->getParent()->getFunction("rtlibFunc1");
-
-      // errs() << rtlibFunc1;
-      // return;
-      // int b = 0;
-      int numSerializeCalls = 0;
-      Function* firstCalledFunc;
-      for (auto &B : *f) {
-        // if (b == 0) {
-        for (auto &I : B) {
-          if (auto* op = dyn_cast<BinaryOperator>(&I)) {
-            // op->dump();
-            Value* rhs = op->getOperand(1);
-            ConstantInt* rhsCI = dyn_cast<ConstantInt>(rhs);
-            assert(rhsCI);
-            assert(rhsCI->equalsInt(4));
-            // rhs->dump();
-            // rhs->getType()->dump();
-            op->setOperand(1, ConstantInt::get(IntegerType::get(Ctx, 32), 8));
-            // op->dump();
-          }
-          if (auto *op = dyn_cast<InvokeInst>(&I)) {
-            auto calledFunc = op->getCalledFunction();
-            if (calledFunc->getName().find("serialization9serialize") != std::string::npos) {
-              ++numSerializeCalls;
-              if (numSerializeCalls == 1) {
-                firstCalledFunc = calledFunc;
-              }
-              // if (numSerializeCalls == 1) {
-              //   BasicBlock* bb = BasicBlock::Create(Ctx);
-              //   f->getBasicBlockList().push_back(bb);
-              //   // insert after op
-              //   IRBuilder<> builder(bb);
-              //   // builder.SetInsertPoint(&B, ++builder.GetInsertPoint());
-
-              //   // Insert a call "serialize(s, timestamp());"
-              //   Value* args[] = {op->getArgOperand(0), ConstantInt::get(IntegerType::get(Ctx, 32), 3)};//timestamp};
-              //   builder.CreateInvoke(firstCalledFunc, op->getNormalDest(), op->getUnwindDest(), args);
-              //   op->setNormalDest(bb);
-
-              // }
-            }
-
-          }
-          //   // I.dump();
-          //   // Insert *after* `op`.
-          //   IRBuilder<> builder(&I);
-          //   // builder.SetInsertPoint(&B, ++builder.GetInsertPoint());
-
-          //   // Insert a call to our function.
-          //   // Value* args[] = {};
-          //   builder.CreateCall(rtlibFunc1);
-
-
-          //   errs() << "patch3\n";
-          //   // errs() << "after patching\n";
-          //   // f->dump();
-          //   dumpToFile(f, "serializeMessagePatched.ll");
-          //   return;
-          //   // return true;
-          // // }
-        // }
-      }
-      // ++b;
-      }
-
-      dumpToFile(f, "serializeMessagePatched.ll");
-
-    }
-
+    // instrument ros::Publisher::publish function
     void patchPublishFunction(
       Function* f,
       uint32_t topicIdx,
       uint32_t nodeIdx)
     {
-      // for (auto &B : *f) {
-      //   for (auto &I : B) {
-      //     // I.dump();
-      //     if (auto* op = dyn_cast<InvokeInst>(&I)) {
-
-      //       auto calledFunc = op->getCalledFunction();
-      //       // errs() << calledFunc->getName() << "\n";
-
-      //       if (calledFunc->getName().find("boost4bind") != std::string::npos) {
-      //         errs() << demangle(calledFunc->getName()) << "\n";
-      //       // if (calledFunc->getName().find("Publish") != std::string::npos) {
-      //         //clone function (to create an instrumented version)
-      //         // I.dump();
-      //         Value* v1 = op->getArgOperand(0);
-      //         Function* f2 = dyn_cast<Function>(v1);
-      //         assert(f2);
-      //         errs() << demangle(f2->getName()) << "\n";
-      //         assert(f2->getName().find("serializeMessage") != std::string::npos);
-      //         ValueToValueMapTy VMap;
-      //         Function* clonedFunc = CloneFunction(f2, VMap, false);
-      //         f->getParent()->getFunctionList().push_back(clonedFunc);
-      //         // instrument clone
-      //         patchserializeMessageFunction(clonedFunc);
-      //         // set call target to clone
-      //         op->setArgOperand(0, clonedFunc);
-      //         errs() << "patched2!\n";
-      //         return;
-      //       }
-      //     }
-      //   }
-      // }
-      dumpToFile(f, "publishOriginal.ll");
+      // dumpToFile(f, "publishOriginal.ll");
 
       LLVMContext &Ctx = f->getContext();
       Constant *addToLog = f->getParent()->getOrInsertFunction(
@@ -734,12 +580,13 @@ namespace {
             count
           };
           builder.CreateCall(addToLog, args);
-          dumpToFile(f, "publishPatched.ll");
+          // dumpToFile(f, "publishPatched.ll");
           return;
         }
       }
     }
 
+    // instrument subscriber callback
     void patchSubscribeCallback(
       Function* f,
       uint32_t topicIdx,
@@ -766,6 +613,7 @@ namespace {
       }
     }
 
+    // instrument main()
     void patchMain(
       Function* f)
     {
@@ -797,6 +645,7 @@ namespace {
       }
     }
 
+    // check if user requested to patch this publisher
     const PatchPoint* shouldPatchPublisher(
       StringRef file,
       unsigned line,
@@ -812,6 +661,7 @@ namespace {
       return nullptr;
     }
 
+    // check if user requested to path this subscriber
     const PatchPoint* shouldPatchSubscriber(const std::string& name) const {
       for (const auto& pp : m_patchPoints) {
         if (pp.type == PatchPoint::TypeSubscriber
@@ -822,7 +672,7 @@ namespace {
       return nullptr;
     }
 
-
+    // main instrumentation logic
     virtual bool runOnFunction(Function &F) {
       bool changedCode = false;
 
@@ -869,11 +719,11 @@ namespace {
                 errs() << "Found ros::Publisher::publish at " << dir << " " << file << " " << line << "\n";
                 if (const PatchPoint* pp = shouldPatchPublisher(file, line, name)) {
                   // patch this function
-                  dumpToFile(&F, "publishCallerOriginal.ll");
+                  // dumpToFile(&F, "publishCallerOriginal.ll");
 
                   stringstream sstr;
                   sstr << "paths_" << pp->topicIdx << "_" << pp->nodeIdx << ".txt";
-                  ballLarusPatch(F, sstr.str());
+                  ballLarusPatch(F, I, sstr.str());
 
                   ValueToValueMapTy VMap;
                   Function* clonedFunc = CloneFunction(calledFunc, VMap, false);
@@ -888,7 +738,7 @@ namespace {
                     op->setCalledFunction(clonedFunc);
                   }
                   changedCode = true;
-                  dumpToFile(&F, "publishCallerPatched.ll");
+                  // dumpToFile(&F, "publishCallerPatched.ll");
                   errs() << "...patched!\n";
                 } else {
                   errs() << "...ignored!\n";
@@ -902,114 +752,6 @@ namespace {
         }
       }
       return changedCode;
-
-      // // errs() << F.getParent()->getName() << "\n";
-
-      // // errs() << demangle(F.getName()) << "\n";
-      // // if (F.getName().find("serializeMessage") != std::string::npos) {
-      // //   patchserializeMessageFunction(&F);
-      // //   return true;
-      // // }
-      // // if (F.getName().find("boost4bind")!= std::string::npos) {
-      // //   errs() << "found boostbind" << "\n";
-      // //   dumpToFile(&F, "boostbind.ll");
-      // //   patchserializeMessageFunction(&F);
-      // //   return true;
-      // // }
-      // // if (F.getName().find("publish")!= std::string::npos) {
-      // //   errs() << "found publish" << "\n";
-      // //   dumpToFile(&F, "publish.ll");
-      // //   // patchserializeMessageFunction(&F);
-      // //   return true;
-      // // }
-
-      // // return changedCode;
-
-
-      //   // Function* rtlibFunc1 = F.getParent()->getFunction("rtlibFunc1");
-
-      //   // errs() << rtlibFunc1;
-
-      // // if (F.getName().find("rtlib") != std::string::npos) {
-      // //   errs() << F.getName() << &F << "\n";
-
-
-      // // }
-
-      // if (F.getName() == "main") {
-      //   errs() << "found main!\n";
-
-      //   // errs() << "Function body:\n";
-      //   // F.dump();
-
-      //   for (auto& B : F) {
-      //     // errs() << "Basic block:\n";
-      //     // B.dump();
-      //     for (auto& I : B) {
-      //       if (auto* op = dyn_cast<InvokeInst>(&I)) {
-      //         auto calledFunc = op->getCalledFunction();
-      //         if (calledFunc->getName().find("ros9Publisher7publish") != std::string::npos) {
-      //           if (DILocation *loc = I.getDebugLoc()) {
-      //             unsigned line = loc->getLine();
-      //             StringRef file = loc->getFilename();
-      //             StringRef dir = loc->getDirectory();
-      //             errs() << dir << " " << file << " " << line << "\n";
-      //           }
-
-      //           auto dl = I.getDebugLoc();
-      //           if (dl) {
-      //             errs() << "have dl\n" << dl.getLine()  << "\n";
-      //           }
-      //         // if (calledFunc->getName().find("Publish") != std::string::npos) {
-      //           //clone function (to create an instrumented version)
-      //           // I.dump();
-      //           ValueToValueMapTy VMap;
-      //           Function* clonedFunc = CloneFunction(calledFunc, VMap, false);
-      //           F.getParent()->getFunctionList().push_back(clonedFunc);
-      //           // instrument clone
-      //           patchPublishFunction(clonedFunc);
-      //           // patchserializeMessageFunction(clonedFunc);
-      //           // set call target to clone
-      //           op->setCalledFunction(clonedFunc);
-      //           changedCode = true;
-      //           errs() << "patched!\n";
-      //         }
-      //       }
-      //     }
-      //     // for (auto& I : B) {
-      //     //   errs() << I.getOpcodeName() << "\n";
-      //     //   // errs() << "Instruction: ";
-      //     //   // I.dump();
-      //     // }
-      //   }
-
-      // }
-
-      // // errs() << "I saw a function called " << F.getName() << "!\n";
-      // return changedCode;
-      // // // Get the function to call from our runtime library.
-      // // LLVMContext &Ctx = F.getContext();
-      // // Constant *logFunc = F.getParent()->getOrInsertFunction(
-      // //   "logop", Type::getVoidTy(Ctx), Type::getInt32Ty(Ctx), NULL
-      // // );
-
-      // // for (auto &B : F) {
-      // //   for (auto &I : B) {
-      // //     if (auto *op = dyn_cast<BinaryOperator>(&I)) {
-      // //       // Insert *after* `op`.
-      // //       IRBuilder<> builder(op);
-      // //       builder.SetInsertPoint(&B, ++builder.GetInsertPoint());
-
-      // //       // Insert a call to our function.
-      // //       Value* args[] = {op};
-      // //       builder.CreateCall(logFunc, args);
-
-      // //       return true;
-      // //     }
-      // //   }
-      // // }
-
-      // // return false;
     }
   };
 }
